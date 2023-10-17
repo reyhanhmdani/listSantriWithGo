@@ -1,0 +1,4 @@
+CREATE TABLE Jurusan(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    jurusan VARCHAR(255) NOT NULL
+);
