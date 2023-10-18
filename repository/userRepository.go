@@ -10,7 +10,9 @@ type UserRepository interface {
 	CreateUserAdmin(users *entity.User) error
 	DeleteUser(userID int64) error
 	//CreateSantri(createSantriData *entity.CreateSantri) (*entity.CreateSantri, error)
-	UpdateUser(updateData *entity.UpdateUser, userID int64) error
+	UpdateUserOnlyUsername(updateUsername *entity.UpdateUsernameUser, userID int64) error
+	UpdateUserOnlyPassword(updatePassword *entity.UpdatePasswordUser, userID int64) error
+	UpdateUserForAdmin(updateSantri *entity.UpdateUserForAdmin, userId int64) error
 
 	// TOKEN
 	UpdateUserToken(user *entity.User) error
@@ -21,6 +23,7 @@ type UserRepository interface {
 
 	// TAMBAHAN
 	CheckUsernameUser(username string) (*entity.User, error)
+	CheckUsernameUserOremail(username, email string) (*entity.User, error)
 	//GetSantriByID(santriID int64) (*entity.Santri, error)
 	GetUserByID(userId int64) (*entity.User, error)
 	GetUserByUsername(username string) (*entity.User, error)
@@ -37,4 +40,8 @@ type UserRepository interface {
 	GetMinatList() ([]entity.Minat, error)
 	GetJurusanList() ([]entity.Jurusan, error)
 	GetStatusList() ([]entity.Status, error)
+
+	// FORGOT PASSWORD
+	CheckEmail(email string) (*entity.User, error)
+	CreateResetPasswordToken(userID int64, token string) error
 }

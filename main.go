@@ -33,10 +33,10 @@ func main() {
 		return
 	}
 
-	err = database.Migrate(db)
-	if err != nil {
-		log.Fatalf("Error running schema migration %v", err)
-	}
+	//err = database.Migrate(db)
+	//if err != nil {
+	//	log.Fatalf("Error running schema migration %v", err)
+	//}
 
 	userRepo := database.NewUserRepository(db)
 	santriRepo := database.NewSantriRepository(db)

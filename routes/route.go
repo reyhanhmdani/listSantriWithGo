@@ -24,7 +24,7 @@ func (rtr *Route) RouteInit() *gin.Engine {
 	admin := r.Group("/", middleware.AdminMiddleware())
 	{
 		admin.GET("/admin/allUsers", rtr.santriService.ViewAllUsers)
-		admin.PUT("/admin/updateUser/:id", rtr.santriService.UpdateUserForAdmin)
+		admin.PATCH("/admin/updateUser/:id", rtr.santriService.UpdateUserForAdmin)
 	}
 
 	User := r.Group("/", middleware.UserMiddleware())
@@ -32,7 +32,9 @@ func (rtr *Route) RouteInit() *gin.Engine {
 		User.GET("/profile", rtr.santriService.GetProfile)
 		User.POST("/createSantri", rtr.santriService.CreateSantri)
 		User.GET("/searchSantri", rtr.santriService.SearchHandler)
-		User.PUT("/updateUser/:id", rtr.santriService.UpdateUserProfile)
+		//User.PUT("/updateUsername/:id", rtr.santriService.UpdateUserForAdmin)
+		User.PATCH("/updateUsername/:id", rtr.santriService.UpdateUserUsername)
+		User.PATCH("/updatePassword/:id", rtr.santriService.UpdateUserPassword)
 		User.DELETE("/deleteUser/:id", rtr.santriService.DeleteUser)
 	}
 
@@ -46,6 +48,9 @@ func (rtr *Route) RouteInit() *gin.Engine {
 	r.GET("/getJurusanList", rtr.santriService.GetJurusanList)
 	r.GET("/getMinatList", rtr.santriService.GetMinatList)
 	r.GET("/getStatusList", rtr.santriService.GetStatusList)
+
+	// forgot password
+	r.POST("/forgot-password", rtr.santriService.ForgotPassword)
 
 	return r
 }

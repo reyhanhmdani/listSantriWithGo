@@ -14,6 +14,7 @@ import (
 	"project1/model/santriRequest"
 	"project1/repository"
 	"strconv"
+	"strings"
 )
 
 type Handler struct {
@@ -43,18 +44,19 @@ func (h *Handler) ViewAllUsers(ctx *gin.Context) {
 
 // USER
 func (h *Handler) Register(ctx *gin.Context) {
-	request := new(santriRequest.CreateUsersRequest)
+	User := new(santriRequest.CreateUsersRequest)
 
 	// binding request body ke struct
-	if err := ctx.ShouldBindJSON(&request); err != nil {
+	if err := ctx.ShouldBindJSON(&User); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, respErr.ErrorResponse{
 			Message: err.Error(),
 			Status:  http.StatusBadRequest,
 		})
 		return
 	}
+
 	// cek apakah username sudah ada di database
-	existingUser, err := h.UserRepository.CheckUsernameUser(request.Username)
+	existingUser, err := h.UserRepository.CheckUsernameUserOremail(User.Username, User.Email)
 	if existingUser != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, respErr.ErrorResponse{
 			Message: "Username, or email already exist",
@@ -62,8 +64,16 @@ func (h *Handler) Register(ctx *gin.Context) {
 		})
 		return
 	}
+	// Validasi alamat email
+	if !strings.HasSuffix(User.Email, "@gmail.com") {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, respErr.Error{
+			Error: "Invalid email format. Email must be a @gmail.com address.",
+		})
+		return
+	}
+
 	// hash password pengguna sebelum disimpan ke database
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.Password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(User.Password), bcrypt.DefaultCost)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, respErr.ErrorResponse{
 			Message: "Failed to hash Password",
@@ -79,9 +89,10 @@ func (h *Handler) Register(ctx *gin.Context) {
 
 	// simpan Pengguna ke database
 	newSantri := &entity.User{
-		Username: request.Username,
+		Username: User.Username,
+		Email:    User.Email,
 		Password: string(hashedPassword),
-		Role:     request.Role,
+		Role:     User.Role,
 	}
 
 	err = h.UserRepository.CreateUserAdmin(newSantri)
@@ -97,7 +108,7 @@ func (h *Handler) Register(ctx *gin.Context) {
 	// mengembalikan pesan berhasil sebagai response
 	ctx.JSON(http.StatusOK, gin.H{"message": "Santri created successfully"})
 }
-func (h *Handler) UpdateUserProfile(ctx *gin.Context) {
+func (h *Handler) UpdateUserPassword(ctx *gin.Context) {
 	// Dapatkan ID pengguna dari URL
 	userID, _ := ctx.Params.Get("id")
 	// Dapatkan peran pengguna dari token
@@ -140,7 +151,7 @@ func (h *Handler) UpdateUserProfile(ctx *gin.Context) {
 		return
 	}
 	// Ambil data yang ingin diupdate dari JSON request
-	updateData := new(entity.UpdateUser)
+	updateData := new(entity.UpdatePasswordUser)
 	if err := ctx.ShouldBindJSON(updateData); err != nil {
 		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
 			Message: err.Error(),
@@ -173,9 +184,9 @@ func (h *Handler) UpdateUserProfile(ctx *gin.Context) {
 	}
 
 	// Jika username atau password dalam JSON request kosong, gunakan data yang sudah ada di profil pengguna
-	if updateData.Username == "" {
-		updateData.Username = currentUser.Username
-	}
+	//if updateData.Username == "" {
+	//	updateData.Username = currentUser.Username
+	//}
 	if updateData.NewPassword == "" {
 		updateData.NewPassword = currentUser.Password
 	}
@@ -194,7 +205,7 @@ func (h *Handler) UpdateUserProfile(ctx *gin.Context) {
 	}
 
 	// Lakukan validasi dan update profil user di sini
-	if err := h.UserRepository.UpdateUser(updateData, userIDInt64); err != nil {
+	if err := h.UserRepository.UpdateUserOnlyPassword(updateData, userIDInt64); err != nil {
 		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
 			Message: err.Error(),
 			Status:  http.StatusInternalServerError,
@@ -205,11 +216,96 @@ func (h *Handler) UpdateUserProfile(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response.UpdateResponse{
 		Status:  http.StatusOK,
 		Message: "User profile updated successfully",
-		Data: entity.UpdateUser{
-			ID:          userIDInt64,
-			Username:    updateData.Username,
+		Data: entity.UpdatePasswordUser{
+			ID: userIDInt64,
+			//Username:    updateData.Username,
 			OldPassword: updateData.OldPassword,
 			NewPassword: updateData.NewPassword,
+		},
+	})
+}
+func (h *Handler) UpdateUserUsername(ctx *gin.Context) {
+	// Dapatkan ID pengguna dari URL
+	userID, _ := ctx.Params.Get("id")
+	// Dapatkan peran pengguna dari token
+	// Pastikan ID yang diterima adalah angka
+	userIDInt64, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil || userIDInt64 == 0 {
+		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
+			Message: "Invalid user ID",
+			Status:  http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Ambil data user yang sedang login
+	currentUserID, _ := ctx.Get("user_id")
+	if currentUserID == nil {
+		ctx.JSON(http.StatusUnauthorized, respErr.ErrorResponse{
+			Message: "User not authenticated",
+			Status:  http.StatusUnauthorized,
+		})
+		return
+	}
+
+	// Cast currentUserID ke int64
+	currentUserIDInt64, ok := currentUserID.(int64)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
+			Message: "Invalid user_id",
+			Status:  http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Pastikan pengguna hanya dapat mengubah profil mereka sendiri
+	if currentUserIDInt64 != userIDInt64 {
+		ctx.JSON(http.StatusUnauthorized, respErr.ErrorResponse{
+			Message: "User is not authorized to update this profile",
+			Status:  http.StatusUnauthorized,
+		})
+		return
+	}
+	// Ambil data yang ingin diupdate dari JSON request
+	updateData := new(entity.UpdateUsernameUser)
+	if err := ctx.ShouldBindJSON(updateData); err != nil {
+		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
+			Message: err.Error(),
+			Status:  http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Ambil data pengguna yang sedang login dari database
+	currentUser, err := h.UserRepository.GetUserByID(currentUserIDInt64)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
+			Message: "Internal Server Error",
+			Status:  http.StatusInternalServerError,
+		})
+		return
+	}
+
+	//Jika username atau password dalam JSON request kosong, gunakan data yang sudah ada di profil pengguna
+	if updateData.Username == "" {
+		updateData.Username = currentUser.Username
+	}
+
+	// Lakukan validasi dan update profil user di sini
+	if err := h.UserRepository.UpdateUserOnlyUsername(updateData, userIDInt64); err != nil {
+		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
+			Message: err.Error(),
+			Status:  http.StatusInternalServerError,
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, response.UpdateResponse{
+		Status:  http.StatusOK,
+		Message: "User profile updated successfully",
+		Data: entity.UpdateUsernameUser{
+			ID:       userIDInt64,
+			Username: updateData.Username,
 		},
 	})
 }
@@ -249,7 +345,7 @@ func (h *Handler) UpdateUserForAdmin(ctx *gin.Context) {
 	}
 
 	// Dapatkan data pembaruan dari JSON request
-	updateData := new(entity.UpdateUser)
+	updateData := new(entity.UpdateUserForAdmin)
 	if err := ctx.ShouldBindJSON(updateData); err != nil {
 		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
 			Message: err.Error(),
@@ -303,7 +399,7 @@ func (h *Handler) UpdateUserForAdmin(ctx *gin.Context) {
 	}
 
 	// Lakukan validasi dan update profil user di sini
-	if err := h.UserRepository.UpdateUser(updateData, userIDInt64); err != nil {
+	if err := h.UserRepository.UpdateUserForAdmin(updateData, userIDInt64); err != nil {
 		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
 			Message: err.Error(),
 			Status:  http.StatusInternalServerError,
@@ -314,7 +410,7 @@ func (h *Handler) UpdateUserForAdmin(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response.UpdateResponse{
 		Status:  http.StatusOK,
 		Message: "User profile updated successfully",
-		Data: entity.UpdateUser{
+		Data: entity.UpdateUserForAdmin{
 			ID:          userIDInt64,
 			Username:    updateData.Username,
 			OldPassword: updateData.OldPassword,
@@ -401,7 +497,7 @@ func (h *Handler) Login(ctx *gin.Context) {
 	}
 
 	// Cek apakah pengguna ada di database berdasarkan username atau email
-	storedUser, err := h.UserRepository.CheckUsernameUser(userLogin.Username)
+	storedUser, err := h.UserRepository.CheckUsernameUserOremail(userLogin.Username, userLogin.Email)
 	if err != nil || storedUser == nil {
 		ctx.AbortWithStatusJSON(http.StatusUnauthorized, respErr.ErrorResponse{
 			Message: "Invalid Username or Password",
@@ -424,7 +520,7 @@ func (h *Handler) Login(ctx *gin.Context) {
 	isAdmin := storedUser.Role == "admin"
 
 	// Membuat token
-	token, err := config.CreateJWTToken(storedUser.Username, storedUser.ID, storedUser.Role)
+	token, err := config.CreateJWTToken(storedUser.Username, storedUser.Email, storedUser.ID, storedUser.Role)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
 			Message: "Failed to generate Token",
@@ -446,7 +542,13 @@ func (h *Handler) Login(ctx *gin.Context) {
 
 	rsp := responseForSantri.LoginResponse{
 		ID: storedUser.ID,
-		Message: fmt.Sprintf("Hello %s! You are%s logged in.", userLogin.Username, func() string {
+		Message: fmt.Sprintf("Hello %s! You are%s logged in.", func() string {
+			if storedUser.Email != "" {
+				// Tampilkan username ketika login menggunakan email
+				return storedUser.Username
+			}
+			return userLogin.Username
+		}(), func() string {
 			if isAdmin {
 				return " an admin"
 			}
@@ -678,6 +780,14 @@ func (h *Handler) CreateSantri(ctx *gin.Context) {
 		return
 	}
 
+	// Validasi alamat email
+	if !strings.HasSuffix(santri.Email, "@gmail.com") {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, respErr.Error{
+			Error: "Invalid email format. Email must be a @gmail.com address.",
+		})
+		return
+	}
+
 	// Get the user ID from the token
 	userID, _ := ctx.Get("user_id")
 	role, _ := ctx.Get("role")
@@ -749,4 +859,50 @@ func (h *Handler) CreateSantri(ctx *gin.Context) {
 		Message: "New Character Created",
 		Data:    *createdSantri,
 	})
+}
+
+// FORGOT PASSWORD
+
+func (h *Handler) ForgotPassword(ctx *gin.Context) {
+	var request entity.ForgotPassword
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		logrus.Error("error di awal")
+		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
+			Message: err.Error(),
+			Status:  http.StatusBadRequest,
+		})
+		return
+	}
+
+	// periksa apakah alamat email valid
+	user, err := h.UserRepository.CheckEmail(request.Email)
+	if err != nil {
+		logrus.Error("error di bagian internal server error", err)
+		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
+			Message: err.Error(),
+			Status:  http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// jika email tidak di temukan maka not found email
+	if user == nil {
+		logrus.Error("gak nemu email", err)
+		ctx.JSON(http.StatusNotFound, respErr.ErrorResponse{
+			Message: err.Error(),
+			Status:  http.StatusNotFound,
+		})
+		return
+	}
+
+	err = h.UserRepository.CreateResetPasswordToken(user.ID, user.Token)
+	if err != nil {
+		logrus.Error("error di bagian resetPassword", err)
+		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
+			Message: err.Error(),
+			Status:  http.StatusInternalServerError,
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "Password reset instructions sent to your email"})
 }

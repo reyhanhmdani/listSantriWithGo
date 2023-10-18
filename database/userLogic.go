@@ -4,6 +4,7 @@ import (
 	"errors"
 	"gorm.io/gorm"
 	"project1/model/entity"
+	"time"
 )
 
 type UserRepository struct {
@@ -39,17 +40,62 @@ func (S *UserRepository) DeleteUser(userID int64) error {
 	return result.Error
 }
 
-// Metode untuk membuat data Santri baru
-func (S *UserRepository) UpdateUser(updateData *entity.UpdateUser, userID int64) error {
+func (S *UserRepository) UpdateUserForAdmin(updateSantri *entity.UpdateUserForAdmin, userID int64) error {
 	// Pastikan hanya kolom-kolom yang perlu diupdate yang diperbarui
 	updateColumns := make(map[string]interface{})
 
-	if updateData.Username != "" {
-		updateColumns["username"] = updateData.Username
+	if updateSantri.Username != "" {
+		updateColumns["username"] = updateSantri.Username
 	}
+
+	if updateSantri.NewPassword != "" {
+		updateColumns["password"] = updateSantri.NewPassword
+	}
+
+	// Gunakan GORM untuk melakukan pembaruan di database
+	result := S.DB.Model(&entity.User{}).Where("id = ?", userID).Updates(updateColumns)
+
+	// Periksa apakah ada kesalahan saat melakukan pembaruan
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// Periksa apakah pengguna yang sesuai ditemukan untuk menghindari kasus error yang tidak diharapkan
+	if result.RowsAffected == 0 {
+		return errors.New("User not found")
+	}
+
+	return nil
+}
+func (S *UserRepository) UpdateUserOnlyPassword(updateData *entity.UpdatePasswordUser, userID int64) error {
+	// Pastikan hanya kolom-kolom yang perlu diupdate yang diperbarui
+	updateColumns := make(map[string]interface{})
 
 	if updateData.NewPassword != "" {
 		updateColumns["password"] = updateData.NewPassword
+	}
+
+	// Gunakan GORM untuk melakukan pembaruan di database
+	result := S.DB.Model(&entity.User{}).Where("id = ?", userID).Updates(updateColumns)
+
+	// Periksa apakah ada kesalahan saat melakukan pembaruan
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// Periksa apakah pengguna yang sesuai ditemukan untuk menghindari kasus error yang tidak diharapkan
+	if result.RowsAffected == 0 {
+		return errors.New("User not found")
+	}
+
+	return nil
+}
+func (S *UserRepository) UpdateUserOnlyUsername(updateUsername *entity.UpdateUsernameUser, userID int64) error {
+	// Pastikan hanya kolom-kolom yang perlu diupdate yang diperbarui
+	updateColumns := make(map[string]interface{})
+
+	if updateUsername.Username != "" {
+		updateColumns["username"] = updateUsername.Username
 	}
 
 	// Gunakan GORM untuk melakukan pembaruan di database
@@ -91,6 +137,19 @@ func (S *UserRepository) CheckUsernameUser(username string) (*entity.User, error
 	return &admin, nil
 
 }
+func (S *UserRepository) CheckUsernameUserOremail(username, email string) (*entity.User, error) {
+	var admin entity.User
+	result := S.DB.Where("username = ? OR email = ?", username, email).First(&admin)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &admin, nil
+
+}
+
 func (S *UserRepository) GetUserByID(userId int64) (*entity.User, error) {
 	var user entity.User
 	err := S.DB.Where("id = ?", userId).First(&user).Error
@@ -211,4 +270,29 @@ func (S *UserRepository) GetStatusList() ([]entity.Status, error) {
 		return nil, err
 	}
 	return statusList, nil
+}
+
+// FORGOT PASSWORD
+func (S *UserRepository) CheckEmail(email string) (*entity.User, error) {
+	var user entity.User
+	result := S.DB.Where("email = ?", email).First(&user)
+	if result != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &user, nil
+}
+
+func (S *UserRepository) CreateResetPasswordToken(userID int64, token string) error {
+	resetToken := &entity.ResetPasswordToken{
+		UserID:         userID,
+		ResetToken:     token,
+		ExpirationTime: time.Now().Add(time.Hour), // Token kedaluwarsa dalam 1 jam
+	}
+	if err := S.DB.Create(resetToken).Error; err != nil {
+		return err
+	}
+	return nil
 }

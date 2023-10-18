@@ -10,18 +10,20 @@ var JwtKey = []byte(os.Getenv("JWT_KEY"))
 
 type Claims struct {
 	Username string `json:"username"`
+	Email    string `json:"email"`
 	UserID   int64  `json:"user_id"`
 	Role     string `json:"role"`
 	jwt.StandardClaims
 }
 
 // Membuat token JWT
-func CreateJWTToken(username string, userID int64, role string) (string, error) {
+func CreateJWTToken(username, email string, userID int64, role string) (string, error) {
 	expirationTime := time.Now().Add(time.Minute * 60)
 
 	// Atur payload token
 	claims := &Claims{
 		Username: username,
+		Email:    email,
 		UserID:   userID,
 		Role:     role,
 		StandardClaims: jwt.StandardClaims{
