@@ -45,5 +45,7 @@ Pengamanan:
 
 - Keamanan diimplementasikan melalui otentikasi pengguna, manajemen izin, dan penggunaan token otentikasi.
 Logging:
+
+- Tambahan : - adanya fitur forgot password (masih pengembangan. (sudah jadi tapi masih testing))
  
 - Aplikasi dan server bisa melakukan logging aktivitas seperti permintaan masuk, akses ke data, dan perubahan data untuk keperluan pemantauan dan penelusuran.
