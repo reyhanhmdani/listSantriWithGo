@@ -863,10 +863,58 @@ func (h *Handler) CreateSantri(ctx *gin.Context) {
 
 // FORGOT PASSWORD
 
+// Handler for generating and sending password reset email
 func (h *Handler) ForgotPassword(ctx *gin.Context) {
-	var request entity.ForgotPassword
+	// Parse the request body
+	var request entity.SendEmailRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
-		logrus.Error("error di awal")
+		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
+			Message: "Invalid request body",
+			Status:  http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Check if the provided email exists in the database
+	user, err := h.UserRepository.CheckUsernameUserOremail("", request.Email)
+	if err != nil || user == nil {
+		ctx.JSON(http.StatusNotFound, respErr.ErrorResponse{
+			Message: "Email not found",
+			Status:  http.StatusNotFound,
+		})
+		return
+	}
+
+	// Generate a password reset token and store it in the database
+	token, err := h.UserRepository.GeneratePasswordResetToken(user.ID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
+			Message: "Failed to generate password reset token",
+			Status:  http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Send the password reset email to the user
+	err = config.SendPasswordResetEmail(user.Email, token)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
+			Message: "Failed to send password reset email",
+			Status:  http.StatusInternalServerError,
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Password reset email sent successfully"})
+}
+
+// Handler for verifying and using the password reset token
+func (h *Handler) ResetPassword(ctx *gin.Context) {
+	token := ctx.Param("token")
+
+	var request entity.PasswordResetRequest
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		logrus.Error(err)
 		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
 			Message: err.Error(),
 			Status:  http.StatusBadRequest,
@@ -874,35 +922,35 @@ func (h *Handler) ForgotPassword(ctx *gin.Context) {
 		return
 	}
 
-	// periksa apakah alamat email valid
-	user, err := h.UserRepository.CheckEmail(request.Email)
+	// Verifikasi token
+	userID, err := h.UserRepository.VerifyPasswordResetToken(token)
 	if err != nil {
-		logrus.Error("error di bagian internal server error", err)
+		ctx.JSON(http.StatusUnauthorized, respErr.ErrorResponse{
+			Message: "Invalid or expired token",
+			Status:  http.StatusUnauthorized,
+		})
+		return
+	}
+
+	// Anda dapat menambahkan logika lain di sini, seperti memeriksa kekuatan kata sandi baru, dan sebagainya
+
+	// Update kata sandi pengguna
+	if err := h.UserRepository.UpdatePassword(userID, request.NewPassword); err != nil {
 		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
-			Message: err.Error(),
+			Message: "Failed to update password",
 			Status:  http.StatusInternalServerError,
 		})
 		return
 	}
 
-	// jika email tidak di temukan maka not found email
-	if user == nil {
-		logrus.Error("gak nemu email", err)
-		ctx.JSON(http.StatusNotFound, respErr.ErrorResponse{
-			Message: err.Error(),
-			Status:  http.StatusNotFound,
-		})
-		return
-	}
-
-	err = h.UserRepository.CreateResetPasswordToken(user.ID, user.Token)
-	if err != nil {
-		logrus.Error("error di bagian resetPassword", err)
+	// Hapus token reset password yang sudah digunakan
+	if err := h.UserRepository.DeletePasswordResetToken(token); err != nil {
 		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
-			Message: err.Error(),
+			Message: "Failed to delete password reset token",
 			Status:  http.StatusInternalServerError,
 		})
 		return
 	}
-	ctx.JSON(http.StatusOK, gin.H{"message": "Password reset instructions sent to your email"})
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Password reset successful"})
 }

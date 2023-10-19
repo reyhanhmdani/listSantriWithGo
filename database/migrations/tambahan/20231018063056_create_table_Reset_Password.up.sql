@@ -1,7 +1,7 @@
-CREATE TABLE ForgotPassword (
+CREATE TABLE TokenReset (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT,
-    token VARCHAR(255) NOT NULL,
-    expiration_time TIMESTAMP NOT NULL,
+    token VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES User(id)
 );

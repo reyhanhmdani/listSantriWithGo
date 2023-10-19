@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS ForgotPassword ;
+DROP TABLE IF EXISTS TokenReset ;

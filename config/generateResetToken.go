@@ -2,8 +2,8 @@ package config
 
 import "github.com/google/uuid"
 
-func generateResetToken() (string, error) {
+func GenerateUniqueToken() (string, error) {
 	// Buat token unik, misalnya dengan menggunakan UUID
-	token := uuid.NewString()
-	return token, nil
+	token := uuid.New()
+	return token.String(), nil
 }

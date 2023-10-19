@@ -42,6 +42,10 @@ type UserRepository interface {
 	GetStatusList() ([]entity.Status, error)
 
 	// FORGOT PASSWORD
-	CheckEmail(email string) (*entity.User, error)
-	CreateResetPasswordToken(userID int64, token string) error
+	GeneratePasswordResetToken(userID int64) (string, error)
+	VerifyPasswordResetToken(token string) (int64, error)
+	DeletePasswordResetToken(token string) error
+	UpdatePassword(userID int64, newPassword string) error
+	//CheckEmail(email string) (*entity.User, error)
+	//CreateResetPasswordToken(userID int64, token string) error
 }

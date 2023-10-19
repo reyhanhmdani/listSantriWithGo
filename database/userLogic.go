@@ -2,9 +2,10 @@ package database
 
 import (
 	"errors"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"project1/config"
 	"project1/model/entity"
-	"time"
 )
 
 type UserRepository struct {
@@ -273,26 +274,52 @@ func (S *UserRepository) GetStatusList() ([]entity.Status, error) {
 }
 
 // FORGOT PASSWORD
-func (S *UserRepository) CheckEmail(email string) (*entity.User, error) {
-	var user entity.User
-	result := S.DB.Where("email = ?", email).First(&user)
-	if result != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, result.Error
+
+func (S *UserRepository) GeneratePasswordResetToken(userID int64) (string, error) {
+	// Generate a unique token (e.g., a random string)
+	token, _ := config.GenerateUniqueToken()
+
+	// Simpan token reset password ke dalam database
+	passwordReset := &entity.TokenReset{
+		UserID: userID,
+		Token:  token,
 	}
-	return &user, nil
+	if err := S.DB.Create(passwordReset).Error; err != nil {
+		return "", err
+	}
+
+	// Hapus token reset password yang sudah digunakan (jika ada)
+	S.DB.Where("UserID = ?", userID).Delete(&entity.TokenReset{})
+
+	return token, nil
 }
 
-func (S *UserRepository) CreateResetPasswordToken(userID int64, token string) error {
-	resetToken := &entity.ResetPasswordToken{
-		UserID:         userID,
-		ResetToken:     token,
-		ExpirationTime: time.Now().Add(time.Hour), // Token kedaluwarsa dalam 1 jam
+// VerifyPasswordResetToken memeriksa apakah token reset password valid
+func (S *UserRepository) VerifyPasswordResetToken(token string) (int64, error) {
+	var passwordReset entity.TokenReset
+	if err := S.DB.Where("token = ?", token).First(&passwordReset).Error; err != nil {
+		return 0, err
 	}
-	if err := S.DB.Create(resetToken).Error; err != nil {
+	return passwordReset.UserID, nil
+}
+
+// DeletePasswordResetToken menghapus token reset password yang sudah digunakan
+func (S *UserRepository) DeletePasswordResetToken(token string) error {
+	return S.DB.Where("token = ?", token).Delete(&entity.TokenReset{}).Error
+}
+
+func (S *UserRepository) UpdatePassword(userID int64, newPassword string) error {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
 		return err
 	}
+
+	// Lakukan pembaruan password dalam database
+	if err := S.DB.Model(&entity.User{}).Where("id = ?", userID).Update("password", string(hashedPassword)).Error; err != nil {
+		return err
+	}
+
 	return nil
 }
+
+///////////////////////////

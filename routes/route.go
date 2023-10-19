@@ -50,7 +50,7 @@ func (rtr *Route) RouteInit() *gin.Engine {
 	r.GET("/getStatusList", rtr.santriService.GetStatusList)
 
 	// forgot password
-	r.POST("/forgot-password", rtr.santriService.ForgotPassword)
-
+	r.POST("/forgot_password", rtr.santriService.ForgotPassword)
+	r.PATCH("/reset_password/:token", rtr.santriService.ResetPassword)
 	return r
 }
