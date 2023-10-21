@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 	"project1/config"
 	"project1/model/entity"
+	"time"
 )
 
 type UserRepository struct {
@@ -280,16 +281,15 @@ func (S *UserRepository) GeneratePasswordResetToken(userID int64) (string, error
 	token, _ := config.GenerateUniqueToken()
 
 	// Simpan token reset password ke dalam database
+	expiredAt := time.Now().Add(1 * time.Minute)
 	passwordReset := &entity.TokenReset{
-		UserID: userID,
-		Token:  token,
+		UserID:    userID,
+		Token:     token,
+		ExpiredAt: expiredAt,
 	}
 	if err := S.DB.Create(passwordReset).Error; err != nil {
 		return "", err
 	}
-
-	// Hapus token reset password yang sudah digunakan (jika ada)
-	S.DB.Where("UserID = ?", userID).Delete(&entity.TokenReset{})
 
 	return token, nil
 }
@@ -300,12 +300,21 @@ func (S *UserRepository) VerifyPasswordResetToken(token string) (int64, error) {
 	if err := S.DB.Where("token = ?", token).First(&passwordReset).Error; err != nil {
 		return 0, err
 	}
+	now := time.Now()
+
+	if now.After(passwordReset.ExpiredAt) {
+		return 0, errors.New("token has expired")
+	}
 	return passwordReset.UserID, nil
 }
 
 // DeletePasswordResetToken menghapus token reset password yang sudah digunakan
 func (S *UserRepository) DeletePasswordResetToken(token string) error {
-	return S.DB.Where("token = ?", token).Delete(&entity.TokenReset{}).Error
+	if err := S.DB.Where("token = ?", token).Delete(&entity.TokenReset{}).Error; err != nil {
+		return err
+	}
+	return nil
+
 }
 
 func (S *UserRepository) UpdatePassword(userID int64, newPassword string) error {

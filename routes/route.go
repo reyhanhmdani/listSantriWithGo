@@ -36,6 +36,9 @@ func (rtr *Route) RouteInit() *gin.Engine {
 		User.PATCH("/updateUsername/:id", rtr.santriService.UpdateUserUsername)
 		User.PATCH("/updatePassword/:id", rtr.santriService.UpdateUserPassword)
 		User.DELETE("/deleteUser/:id", rtr.santriService.DeleteUser)
+
+		// upload
+		User.POST("/uploadLocal/:id", rtr.santriService.UploadFileLocal)
 	}
 
 	r.POST("/register", rtr.santriService.Register)

@@ -1,11 +1,14 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 	"net/http"
+	"path/filepath"
 	"project1/config"
 	"project1/model/entity"
 	"project1/model/respErr"
@@ -858,6 +861,122 @@ func (h *Handler) CreateSantri(ctx *gin.Context) {
 		Status:  http.StatusOK,
 		Message: "New Character Created",
 		Data:    *createdSantri,
+	})
+}
+
+// Upload File
+
+func (h *Handler) UploadFileLocal(ctx *gin.Context) {
+	ID := ctx.Param("id")
+
+	userID, _ := ctx.Get("user_id")
+	if userID == nil {
+		ctx.JSON(http.StatusUnauthorized, respErr.ErrorResponse{
+			Message: "User not authenticated",
+			Status:  http.StatusUnauthorized,
+		})
+		return
+	}
+
+	userIDInt64, ok := userID.(int64)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
+			Message: "invalid user_id",
+			Status:  http.StatusBadRequest,
+		})
+		return
+	}
+
+	// Mengambil data Santri terhubung ke pengguna berdasarkan ID pengguna
+	_, err := h.UserRepository.GetSantriByUserID(userIDInt64)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
+			Message: "Internal Server Error",
+			Status:  http.StatusInternalServerError,
+		})
+		return
+	}
+
+	Id, err := strconv.ParseInt(ID, 10, 64)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
+			Message: "Invalid Data ID",
+			Status:  http.StatusBadRequest,
+		})
+		return
+	}
+
+	santriId, err := h.SantriRepository.GetSantriByID(Id)
+	if err != nil {
+		logrus.Error("not found Id santri", err)
+		ctx.JSON(http.StatusNotFound, respErr.ErrorResponse{
+			Message: err.Error(),
+			Status:  http.StatusNotFound,
+		})
+		return
+	}
+
+	file, err := ctx.FormFile("file")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
+			Message: "No FIle Upload",
+			Status:  http.StatusBadRequest,
+		})
+		return
+	}
+	// Check file
+	allowedExtensions := map[string]bool{
+		".jpg":  true,
+		".jpeg": true,
+		".png":  true,
+		".webp": true,
+	}
+	ext := filepath.Ext(file.Filename)
+	if !allowedExtensions[ext] {
+		ctx.JSON(http.StatusBadRequest, respErr.ErrorResponse{
+			Message: "error not allowed type",
+			Status:  http.StatusBadRequest,
+		})
+		return
+	}
+
+	attachment, err := h.SantriRepository.UploadFileLocal(file, Id)
+	if err != nil {
+		// Periksa apakah error merupakan "data santri not found" atau bukan
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Jika error disebabkan oleh record not found, kirim respons 404
+			ctx.JSON(http.StatusNotFound, respErr.ErrorResponse{
+				Message: "data Character not found",
+				Status:  http.StatusNotFound,
+			})
+		} else {
+			// Jika error bukan karena record not found, kirim respons 500
+			ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
+				Message: err.Error(),
+				Status:  http.StatusInternalServerError,
+			})
+			logrus.Error(err)
+		}
+		return
+	}
+
+	// Perbarui bidang Lampiran data dengan lampiran yang baru
+	santriId.Attachments = append(santriId.Attachments, *attachment)
+
+	// menyimpan data yang di perbarui ke basis data
+	err = h.SantriRepository.UpdateToAtch(santriId)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, respErr.ErrorResponse{
+			Message: err.Error(),
+			Status:  http.StatusInternalServerError,
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, response.SuccessMessage{
+		Status:  http.StatusOK,
+		Message: "FIle Uploaded and attachment created successfully",
+		Data:    attachment,
 	})
 }
 

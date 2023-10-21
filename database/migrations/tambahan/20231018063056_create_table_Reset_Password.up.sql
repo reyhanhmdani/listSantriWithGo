@@ -3,5 +3,6 @@ CREATE TABLE TokenReset (
     user_id BIGINT,
     token VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expired_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES User(id)
 );

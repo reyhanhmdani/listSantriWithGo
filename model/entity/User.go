@@ -1,7 +1,5 @@
 package entity
 
-import "time"
-
 type User struct {
 	ID       int64  `gorm:"primaryKey" json:"id"`
 	Username string `gorm:"not null;unique" json:"username"`
@@ -48,26 +46,4 @@ type UpdateUserForAdmin struct {
 type UpdateEmail struct {
 	ID    int64  `json:"id"`
 	Email string `gorm:"type:varchar(255);uniqueIndex:idx_email_name" json:"email"`
-}
-
-type TokenReset struct {
-	ID        int64     `gorm:"primaryKey" json:"id"`
-	UserID    int64     `json:"user_id"`
-	Token     string    `json:"token"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-func (TokenReset) TableName() string {
-	return "PasswordReset"
-}
-
-type SendEmailRequest struct {
-	Email string `json:"email" binding:"required,email"`
-}
-
-// PasswordResetRequest digunakan untuk mengganti kata sandi
-type PasswordResetRequest struct {
-	Token           string `json:"token"`
-	NewPassword     string `json:"new_password" binding:"required"`
-	ReenterPassword string `json:"reenter_password" binding:"required"`
 }

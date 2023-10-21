@@ -1,6 +1,9 @@
 package repository
 
-import "project1/model/entity"
+import (
+	"mime/multipart"
+	"project1/model/entity"
+)
 
 type SantriRepository interface {
 	// ALL DATA
@@ -12,6 +15,10 @@ type SantriRepository interface {
 	GetJurusanIDByName(jurusanName string) (int64, error)
 	GetMinatIDByName(minatName string) (int64, error)
 	GetStatusIDByName(statusName string) (int64, error)
+
+	// uploadFile
+	UploadFileLocal(file *multipart.FileHeader, Id int64) (*entity.Attachments, error)
+	UpdateToAtch(santri *entity.Santri) error
 
 	// TAMBAHAN
 	GetSantriByID(santriID int64) (*entity.Santri, error)

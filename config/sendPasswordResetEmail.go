@@ -19,7 +19,7 @@ func SendPasswordResetEmail(email, token string) error {
 	//log.Printf("smtp Password: %s", SmtpPassword)
 	////log.Printf("DB Database: %s", dbDatabase)
 
-	d := gomail.NewDialer("sandbox.smtp.mailtrap.io", 2525, SmtpUser, SmtpPassword)
+	d := gomail.NewDialer("smtp.mailtrap.io", 2525, SmtpUser, SmtpPassword)
 
 	// Kirim email
 	if err := d.DialAndSend(m); err != nil {

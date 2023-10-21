@@ -1,16 +1,17 @@
 package entity
 
 type Santri struct {
-	ID       int64  `json:"id"`
-	Nama     string `json:"nama"`
-	HP       int64  `json:"hp"`
-	Email    string `json:"email"`
-	Gender   string `json:"gender"`
-	Alamat   string `json:"alamat"`
-	Angkatan int    `json:"angkatan"`
-	Jurusan  string `json:"jurusan"`
-	Minat    string `json:"minat"`
-	Status   string `json:"status"`
+	ID          int64         `json:"id"`
+	Nama        string        `json:"nama"`
+	HP          int64         `json:"hp"`
+	Email       string        `json:"email"`
+	Gender      string        `json:"gender"`
+	Alamat      string        `json:"alamat"`
+	Angkatan    int           `json:"angkatan"`
+	Jurusan     string        `json:"jurusan"`
+	Minat       string        `json:"minat"`
+	Status      string        `json:"status"`
+	Attachments []Attachments `gorm:"foreignKey:user_id" json:"attachments"`
 }
 
 func (Santri) TableName() string {

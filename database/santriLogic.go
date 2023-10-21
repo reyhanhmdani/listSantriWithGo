@@ -2,8 +2,15 @@ package database
 
 import (
 	"errors"
+	"fmt"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"io"
+	"mime/multipart"
+	"os"
+	"path/filepath"
 	"project1/model/entity"
+	"time"
 )
 
 type SantriRepository struct {
@@ -20,6 +27,7 @@ func NewSantriRepository(DB *gorm.DB) *SantriRepository {
 func (S *SantriRepository) AllSantriData() ([]entity.Santri, error) {
 	var santris []entity.Santri
 	if err := S.DB.
+		Preload("Attachments").
 		Table("Santri").
 		Select("Santri.*, Jurusan.Jurusan, Minat.Minat, Status.Status").
 		Joins("LEFT JOIN Jurusan ON Santri.jurusan = Jurusan.id").
@@ -31,7 +39,69 @@ func (S *SantriRepository) AllSantriData() ([]entity.Santri, error) {
 	return santris, nil
 }
 
-////// ALL DATA END
+// //// ALL DATA END
+func (S *SantriRepository) UploadFileLocal(file *multipart.FileHeader, Id int64) (*entity.Attachments, error) {
+	santri := &entity.Santri{}
+	if err := S.DB.Where("id = ?", Id).First(santri).Error; err != nil {
+		return nil, err
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer src.Close()
+
+	// bikin nama file yang uniq untuk menghindari konflik
+	uniqueFilename := fmt.Sprintf("%s%s", uuid.NewString(), filepath.Ext(file.Filename))
+
+	// kirimkan upload file nya ke folder local
+	uploadDir := "uploads"
+	// buat direktori nya kalau beum ada
+	err = os.MkdirAll(uploadDir, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	// buat file tujuan
+	dest, err := os.Create(filepath.Join(uploadDir, uniqueFilename))
+	if err != nil {
+		return nil, err
+	}
+	defer dest.Close()
+
+	// Copy file nya ke file tujuan
+	_, err = io.Copy(dest, src)
+	if err != nil {
+		return nil, err
+	}
+	// Return the local file path
+	localFilePath := filepath.Join(uploadDir, uniqueFilename)
+
+	var attachmentOrder int64 = 1 // Set the initial attachment_order
+	// Get the count of existing attachments for the data santri
+	existingAttachmentCount := int64(0)
+	attachmentOrder = existingAttachmentCount + 1 // Set attachment_order dynamically
+
+	// Membuat catatan lampiran di database
+	attachment := &entity.Attachments{
+		UserID:          Id,
+		Path:            localFilePath,
+		AttachmentOrder: attachmentOrder, // atur order
+		Timestamp:       time.Now(),
+	}
+	err = S.DB.Create(attachment).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return attachment, nil
+}
+
+func (S *SantriRepository) UpdateToAtch(santri *entity.Santri) error {
+	err := S.DB.Save(santri).Error
+	return err
+}
 
 // //// CRUD
 
@@ -40,10 +110,13 @@ func (S *SantriRepository) CreateSantri(createSantriData *entity.CreateSantri) (
 	result := S.DB.Create(createSantriData)
 	return createSantriData, result.Error
 }
+
 func (S *SantriRepository) DeleteSantri(santriID int64) error {
 	result := S.DB.Where("id", santriID).Delete(&entity.Santri{})
 	return result.Error
 }
+
+// Upload
 
 // JURUSA, MINAT, STATUS
 // GetJurusanIDByName mengambil ID Jurusan berdasarkan nama Jurusan.
